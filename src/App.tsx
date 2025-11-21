@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertCircle, Save, Pause, Play } from 'lucide-react';
 import { SecurityLobby } from './components/SecurityLobby';
@@ -33,7 +33,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     currentRoom: 1,
     inventory: [],
-    timeRemaining: 2700, // 45 minutes in seconds
+    timeRemaining: 2700, // 45 minutes in seconds (made tougher)
     gameStatus: 'menu',
     roomsCompleted: [false, false, false, false],
     playerName: 'Anonymous Hacker',
@@ -44,9 +44,6 @@ export default function App() {
   const [notification, setNotification] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'menu' | 'game' | 'leaderboard'>('menu');
-  const [loadingResume, setLoadingResume] = useState(true);
-  const saveLock = useRef(false);
-  const submittedScoreRef = useRef(false);
 
   // Timer countdown
   useEffect(() => {
@@ -68,12 +65,12 @@ export default function App() {
   // Auto-hide notification
   useEffect(() => {
     if (notification) {
-      const timer = setTimeout(() => setNotification(null), 3500);
+      const timer = setTimeout(() => setNotification(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [notification]);
 
-  // Auto-save every 30 seconds (debounced with saveLock)
+  // Auto-save every 30 seconds
   useEffect(() => {
     if (gameState.gameStatus === 'playing') {
       const saveInterval = setInterval(() => {
@@ -82,69 +79,6 @@ export default function App() {
       return () => clearInterval(saveInterval);
     }
   }, [gameState]);
-
-  // On mount: attempt to auto-resume if an alias exists
-  useEffect(() => {
-    (async () => {
-      try {
-        const storedAlias = localStorage.getItem('player_alias');
-        if (!storedAlias) {
-          setLoadingResume(false);
-          return;
-        }
-
-        // Attempt to load saved game from your Edge Function
-        const res = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-fb1751b5/load-game`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${publicAnonKey}`,
-            },
-            body: JSON.stringify({ playerName: storedAlias }),
-          }
-        );
-
-        if (!res.ok) {
-          // No saved game or server error -> show menu
-          console.warn('No saved session found or load failed');
-          setLoadingResume(false);
-          return;
-        }
-
-        const payload = await res.json();
-
-        // Expecting payload.data to contain saved state fields;
-        // adapt mapping if your function returns a different shape.
-        const saved = payload?.data;
-        if (!saved) {
-          setLoadingResume(false);
-          return;
-        }
-
-        // Merge saved state into gameState
-        const resumedState: GameState = {
-          currentRoom: saved.currentRoom ?? 1,
-          inventory: saved.inventory ?? [],
-          timeRemaining: saved.timeRemaining ?? 2700,
-          gameStatus: saved.gameStatus ?? 'playing',
-          roomsCompleted: saved.roomsCompleted ?? [false, false, false, false],
-          playerName: storedAlias,
-          totalAttempts: saved.totalAttempts ?? 0,
-        };
-
-        setGameState(resumedState);
-        setViewMode('game');
-        showNotification('Resumed previous session');
-      } catch (err) {
-        console.error('Auto-resume failed', err);
-      } finally {
-        setLoadingResume(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const addToInventory = (item: GameItem) => {
     setGameState((prev) => ({
@@ -167,13 +101,12 @@ export default function App() {
 
     if (gameState.currentRoom === 4) {
       // Game won! Submit to leaderboard
+      submitScore();
       setGameState((prev) => ({
         ...prev,
         roomsCompleted: newRoomsCompleted,
         gameStatus: 'won',
       }));
-
-      submitScore();
       return;
     }
 
@@ -194,20 +127,16 @@ export default function App() {
   };
 
   const startGame = (playerName: string) => {
-    // Save alias to localStorage (StartScreen already does this, but double-safe here)
-    localStorage.setItem('player_alias', playerName);
-
     setGameState({
       currentRoom: 1,
       inventory: [],
-      timeRemaining: 2700, // 45 minutes
+      timeRemaining: 2700, // 45 minutes - tougher!
       gameStatus: 'playing',
       roomsCompleted: [false, false, false, false],
       playerName,
       totalAttempts: 0,
     });
     setViewMode('game');
-    showNotification('Game started — good luck!');
   };
 
   const resetGame = () => {
@@ -232,22 +161,10 @@ export default function App() {
   };
 
   const saveGameProgress = async () => {
-    // Prevent multiple concurrent saves
-    if (saving || saveLock.current) return;
-
-    saveLock.current = true;
-    setSaving(true);
-
+    if (saving) return;
+    
     try {
-      const payload = {
-        playerName: gameState.playerName || localStorage.getItem('player_alias') || 'Anonymous Hacker',
-        currentRoom: gameState.currentRoom,
-        timeRemaining: gameState.timeRemaining,
-        inventory: gameState.inventory,
-        roomsCompleted: gameState.roomsCompleted,
-        totalAttempts: gameState.totalAttempts,
-      };
-
+      setSaving(true);
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-fb1751b5/save-game`,
         {
@@ -256,38 +173,29 @@ export default function App() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${publicAnonKey}`,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            playerName: gameState.playerName,
+            currentRoom: gameState.currentRoom,
+            timeRemaining: gameState.timeRemaining,
+            inventory: gameState.inventory,
+            roomsCompleted: gameState.roomsCompleted,
+          }),
         }
       );
 
-      if (!response.ok) {
-        const txt = await response.text();
-        console.error('Save failed:', txt);
-        showNotification('Failed to save progress');
-      } else {
-        showNotification('Progress saved');
+      if (response.ok) {
+        console.log('Game progress saved');
       }
     } catch (error) {
       console.error('Failed to save game:', error);
-      showNotification('Error saving progress');
     } finally {
       setSaving(false);
-      saveLock.current = false;
     }
   };
 
   const submitScore = async () => {
-    if (submittedScoreRef.current) return;
-    submittedScoreRef.current = true;
-
     try {
       const completionTime = 2700 - gameState.timeRemaining; // Using 45 minutes (2700 seconds)
-      const payload = {
-        playerName: gameState.playerName || localStorage.getItem('player_alias') || 'Anonymous Hacker',
-        completionTime,
-        totalAttempts: gameState.totalAttempts,
-      };
-
       const response = await fetch(
         `https://${projectId}.supabase.co/functions/v1/make-server-fb1751b5/leaderboard`,
         {
@@ -296,20 +204,20 @@ export default function App() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${publicAnonKey}`,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            playerName: gameState.playerName,
+            completionTime,
+            totalAttempts: gameState.totalAttempts,
+          }),
         }
       );
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('Leaderboard submission failed:', errText);
-        showNotification('Failed to submit score');
-      } else {
-        showNotification('Score submitted!');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Score submitted:', data.score);
       }
     } catch (error) {
       console.error('Failed to submit score:', error);
-      showNotification('Error submitting score');
     }
   };
 
@@ -318,7 +226,7 @@ export default function App() {
     return <Leaderboard onBack={() => setViewMode('menu')} />;
   }
 
-  // Show start screen (while attempting resume we can show a spinner or keep menu)
+  // Show start screen
   if (viewMode === 'menu') {
     return (
       <StartScreen

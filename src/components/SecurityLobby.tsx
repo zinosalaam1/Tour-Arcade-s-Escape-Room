@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Lock, Lightbulb, Monitor, StickyNote, FileText } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -23,24 +23,12 @@ export function SecurityLobby({
 }: SecurityLobbyProps) {
   const [code, setCode] = useState('');
   const [attempts, setAttempts] = useState(0);
-
   const [showClue1, setShowClue1] = useState(false);
   const [showClue2, setShowClue2] = useState(false);
   const [showClue3, setShowClue3] = useState(false);
-
   const [hasKeycard, setHasKeycard] = useState(false);
 
   const correctCode = '2188';
-
-  /* ----------------------------------------------
-     AUTO-RESUME SUPPORT
-  ------------------------------------------------*/
-  useEffect(() => {
-    // If the player already collected the keycard earlier, restore state
-    const keycardExists = inventory.some((item) => item.id === 'keycard-level-1');
-    if (keycardExists) setHasKeycard(true);
-  }, [inventory]);
-
 
   const handleSubmit = () => {
     if (code === correctCode) {
@@ -48,7 +36,7 @@ export function SecurityLobby({
       setTimeout(onComplete, 1500);
     } else {
       incrementAttempts();
-      setAttempts((prev) => prev + 1);
+      setAttempts(attempts + 1);
       showNotification('❌ INCORRECT CODE. Try again.');
       setCode('');
     }
@@ -62,19 +50,19 @@ export function SecurityLobby({
         name: 'Level 1 Keycard',
         description: 'Security clearance badge for server access',
       });
-      showNotification('🔑 Keycard collected!');
     }
   };
 
   return (
     <div className="space-y-6">
-
       {/* Room Description */}
       <Card className="bg-slate-900/50 border-slate-800 p-6">
-        <h2 className="text-cyan-400 mb-2">🛑 ROOM 1 — Security Lobby</h2>
+        <h2 className="text-cyan-400 mb-2">
+          🛑 ROOM 1 — Security Lobby
+        </h2>
         <p className="text-slate-300">
           You've infiltrated the building. The security door requires a 4-digit code to proceed.
-          Search the room for clues before the system detects your presence.
+          Search the room for clues to unlock the door before the system detects your presence.
         </p>
         <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
           <Lock className="size-4" />
@@ -83,10 +71,8 @@ export function SecurityLobby({
       </Card>
 
       <div className="grid md:grid-cols-2 gap-6">
-
         {/* Left Column - Clues */}
         <div className="space-y-4">
-          
           {/* Digital Wall Sign */}
           <Card className="bg-gradient-to-br from-cyan-950 to-slate-900 border-cyan-900 p-6">
             <div className="flex items-start gap-3 mb-4">
@@ -109,14 +95,13 @@ export function SecurityLobby({
               <Lightbulb className="size-4 mr-2" />
               {showClue1 ? 'Hide Hint' : 'Show Hint'}
             </Button>
-
             {showClue1 && (
               <div className="mt-3 p-3 bg-cyan-950/50 rounded border border-cyan-800 text-sm text-cyan-200">
-                💡 Look at the word SECURITY. Each letter has a position in the alphabet.
+                💡 Look at the word SECURITY shown on the monitor below. Each letter has a
+                position in the alphabet.
               </div>
             )}
           </Card>
-
 
           {/* Sticky Note */}
           <Card className="bg-yellow-900/20 border-yellow-700/50 p-6">
@@ -131,7 +116,6 @@ export function SecurityLobby({
                 </div>
               </div>
             </div>
-
             <Button
               onClick={() => setShowClue2(!showClue2)}
               variant="outline"
@@ -141,14 +125,13 @@ export function SecurityLobby({
               <Lightbulb className="size-4 mr-2" />
               {showClue2 ? 'Hide Hint' : 'Show Hint'}
             </Button>
-
             {showClue2 && (
               <div className="mt-3 p-3 bg-yellow-950/50 rounded border border-yellow-700 text-sm text-yellow-200">
-                💡 Calculate: First letter of SECURITY, Last letter, Middle letter, and Count.
+                💡 This tells you what to calculate: First letter of SECURITY, Last letter,
+                Middle letter, and Count of total letters.
               </div>
             )}
           </Card>
-
 
           {/* Monitor Display */}
           <Card className="bg-slate-900 border-green-900 p-6">
@@ -166,10 +149,10 @@ export function SecurityLobby({
                 </div>
               </div>
             </div>
+            {/* Solution button removed */}
           </Card>
 
-
-          {/* Keycard Pickup */}
+          {/* Keycard pickup */}
           <Card className="bg-slate-900/50 border-slate-700 p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -179,7 +162,6 @@ export function SecurityLobby({
                   <p className="text-sm text-slate-400">On the security desk</p>
                 </div>
               </div>
-
               <Button
                 onClick={collectKeycard}
                 disabled={hasKeycard}
@@ -190,15 +172,12 @@ export function SecurityLobby({
               </Button>
             </div>
           </Card>
-
         </div>
 
-
-        {/* Right Column – Door Lock */}
+        {/* Right Column - Door Lock */}
         <div>
           <Card className="bg-slate-900 border-red-900 p-6 sticky top-24">
             <div className="text-center space-y-6">
-
               <div>
                 <div className="inline-flex items-center justify-center size-20 rounded-full bg-red-950 border-2 border-red-800 mb-4">
                   <Lock className="size-10 text-red-400" />
@@ -208,7 +187,6 @@ export function SecurityLobby({
               </div>
 
               <div className="space-y-4">
-
                 <Input
                   type="text"
                   maxLength={4}
@@ -231,7 +209,6 @@ export function SecurityLobby({
                 >
                   UNLOCK DOOR
                 </Button>
-
               </div>
 
               {attempts > 0 && (
@@ -243,11 +220,9 @@ export function SecurityLobby({
               <div className="pt-4 border-t border-slate-800 text-xs text-slate-500">
                 💡 Analyze the clues carefully. The answer comes from the word itself.
               </div>
-
             </div>
           </Card>
         </div>
-
       </div>
     </div>
   );
